@@ -484,7 +484,7 @@ STATUS rtcpReportsCallback(UINT32 timerId, UINT64 currentTime, UINT64 customData
     pKvsPeerConnection = pKvsRtpTransceiver->pKvsPeerConnection;
 
     ssrc = pKvsRtpTransceiver->sender.ssrc;
-    DLOGD("rtcpReportsCallback %" PRIu64 " ssrc: %u rtxssrc: %u", currentTime, ssrc, pKvsRtpTransceiver->sender.rtxSsrc);
+    DLOGV("rtcpReportsCallback %" PRIu64 " ssrc: %u rtxssrc: %u", currentTime, ssrc, pKvsRtpTransceiver->sender.rtxSsrc);
 
     // check if ice agent is connected, reschedule in 200msec if not
     ready = pKvsPeerConnection->pSrtpSession != NULL &&
@@ -499,7 +499,7 @@ STATUS rtcpReportsCallback(UINT32 timerId, UINT64 currentTime, UINT64 customData
             convertTimestampToRTP(pKvsRtpTransceiver->pJitterBuffer->clockRate, currentTime - pKvsRtpTransceiver->sender.firstFrameWallClockTime);
         packetCount = pKvsRtpTransceiver->sender.outboundRtpStreamStats.sentRtpStreamStats.packetsSent;
         octetCount = pKvsRtpTransceiver->sender.outboundRtpStreamStats.sentRtpStreamStats.bytesSent;
-        DLOGD("sender report %u %" PRIu64 " %" PRIu64 " : %u packets %u bytes", ssrc, ntpTime, rtpTime, packetCount, octetCount);
+        DLOGV("sender report %u %" PRIu64 " %" PRIu64 " : %u packets %u bytes", ssrc, ntpTime, rtpTime, packetCount, octetCount);
         packetLen = RTCP_PACKET_HEADER_LEN + 24;
         allocSize = packetLen + SRTP_AUTH_TAG_OVERHEAD;
         CHK(NULL != (rawPacket = (PBYTE) MEMALLOC(allocSize)), STATUS_NOT_ENOUGH_MEMORY);

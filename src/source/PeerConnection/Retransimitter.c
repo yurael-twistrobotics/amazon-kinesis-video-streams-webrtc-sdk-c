@@ -124,12 +124,7 @@ STATUS resendPacketOnNack(PRtcpPacket pRtcpPacket, PKvsPeerConnection pKvsPeerCo
     }
 CleanUp:
     CHK_LOG_ERR(retStatus);
-    if (pRtpPacket != NULL) {
-        // free the packet as it is not put back into rolling buffer
         freeRtpPacket(&pRtpPacket);
-        pRtpPacket = NULL;
-    }
-    freeRtpPacket(&pRtpPacket);
 
     LEAVES();
     return retStatus;
