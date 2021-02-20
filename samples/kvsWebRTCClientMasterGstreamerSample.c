@@ -156,22 +156,35 @@ PVOID sendGstreamerAudioVideo(PVOID args)
             } else {
                 pipeline = gst_parse_launch(
                     
-                    //"autovideosrc ! queue ! videoconvert ! video/x-raw,width=1280,height=720,framerate=[30/1,10000000/333333] ! "
-                    //"x264enc bframes=0 speed-preset=veryfast bitrate=512 byte-stream=TRUE tune=zerolatency ! "
+                    // "autovideosrc ! queue ! videoconvert ! video/x-raw,width=1280,height=720,framerate=[30/1,10000000/333333] ! "
+                    // "x264enc bframes=0 speed-preset=veryfast bitrate=512 byte-stream=TRUE tune=zerolatency ! "
+                    // "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                    //SW ENCODER
+                    // "v4l2src ! videoconvert ! video/x-raw,format=I420,width=640,height=480 ! videoscale ! videoconvert ! x264enc tune=zerolatency bitrate=500 speed-preset=superfast"
+                    // "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                    /*UDP SOURCE, KINESIS APP sink*/
+                    "udpsrc address=0.0.0.0 port=5000 caps=\"application/x-rtp,media=video,payload=96,clock-rate=90000,encoding-name=H264\" ! rtph264depay !"
+                    "decodebin ! videoconvert ! "
+                    " queue ! videoconvert ! video/x-raw,width=1280,height=960 ! "
+                    "x264enc bframes=0 speed-preset=veryfast bitrate=1000000 byte-stream=TRUE tune=zerolatency ! "
+                    "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+
+                    // "autovideosrc ! queue ! videoconvert ! video/x-raw,width=1280,height=720,framerate=[30/1,10000000/333333] ! "
+                    // "x264enc bframes=0 speed-preset=veryfast bitrate=512 byte-stream=TRUE tune=zerolatency ! "
                     //config for the raspberry pi with omxh264enc
                     
-                    //"video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                    // "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
                     
                      //"v4l2src do-timestamp=TRUE device=/dev/video0 ! videoconvert ! "
-                    "autovideosrc ! "
+                    // "v4l2src device=/dev/video0 ! "
                     //"queue ! "
-                    "videoconvert ! video/x-raw,format=I420,width=640,height=480,framerate=30/1 ! "
-                    "omxh264enc control-rate=1 target-bitrate=1000000 periodicity-idr=45 inline-header=false ! "
-                     "h264parse config-interval=-1 ! "
+                    // "videoconvert ! video/x-raw,format=I420,width=640,height=480,framerate=30/1 ! "
+                    // "omxh264enc control-rate=1 target-bitrate=1000000 periodicity-idr=45 inline-header=false ! "
+                    //  "h264parse config-interval=-1 ! "
                    //"x264enc bframes=0 speed-preset=veryfast bitrate=512 byte-stream=TRUE tune=zerolatency ! "
-                   "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! "
+                //    "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! "
                    //"video/x-h264,stream-format=byte-stream,alignment=au,width=640,height=480,framerate=30/1 profile=baseline ! "
-                   "appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                //    "appsink sync=TRUE emit-signals=TRUE name=appsink-video",
 
                     
                     &error);
