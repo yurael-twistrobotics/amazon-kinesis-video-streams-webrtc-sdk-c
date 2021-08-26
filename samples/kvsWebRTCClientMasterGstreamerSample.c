@@ -163,9 +163,7 @@ PVOID sendGstreamerAudioVideo(PVOID args)
                     // "v4l2src ! videoconvert ! video/x-raw,format=I420,width=640,height=480 ! videoscale ! videoconvert ! x264enc tune=zerolatency bitrate=500 speed-preset=superfast"
                     // "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
                     /*UDP SOURCE, KINESIS APP sink*/
-                    "udpsrc address=0.0.0.0 port=5000 caps=\"application/x-rtp,media=video,payload=96,clock-rate=90000,encoding-name=H264\" ! rtph264depay !"
-                    "decodebin ! videoconvert ! "
-                    " queue ! videoconvert ! video/x-raw,width=1280,height=960 ! "
+                    " v4l2src ! videoconvert ! video/x-raw,width=1280,height=960 ! "
                     "x264enc bframes=0 speed-preset=veryfast bitrate=1000000 byte-stream=TRUE tune=zerolatency ! "
                     "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
 
