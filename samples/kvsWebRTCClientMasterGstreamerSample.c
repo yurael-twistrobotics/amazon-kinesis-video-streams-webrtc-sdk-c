@@ -163,15 +163,18 @@ PVOID sendGstreamerAudioVideo(PVOID args)
                     //"video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
                     
                      //"v4l2src do-timestamp=TRUE device=/dev/video0 ! videoconvert ! "
-                    "autovideosrc ! "
+                    //"autovideosrc ! "
                     //"queue ! "
-                    "videoconvert ! video/x-raw,format=I420,width=640,height=480,framerate=30/1 ! "
-                    "omxh264enc control-rate=1 target-bitrate=1000000 periodicity-idr=45 inline-header=false ! "
-                     "h264parse config-interval=-1 ! "
+                    //"videoconvert ! video/x-raw,format=I420,width=640,height=480,framerate=30/1 ! "
+                    //"omxh264enc control-rate=1 target-bitrate=1000000 periodicity-idr=45 inline-header=false ! "
+                     //"h264parse config-interval=-1 ! "
                    //"x264enc bframes=0 speed-preset=veryfast bitrate=512 byte-stream=TRUE tune=zerolatency ! "
-                   "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! "
+                   //"video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! "
                    //"video/x-h264,stream-format=byte-stream,alignment=au,width=640,height=480,framerate=30/1 profile=baseline ! "
-                   "appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                   //"appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                    "rtspsrc location=rtsp://admin:twistrobotics123@192.168.99.11/cam/realmonitor?channel=1&subtype=00&authbasic=YWRtaW46bWF0YTIzMDM=  protocols=tcp short-header=TRUE ! "
+                    "rtph264depay ! video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! "
+                    "appsink sync=TRUE emit-signals=TRUE name=appsink-video ",
 
                     
                     &error);
