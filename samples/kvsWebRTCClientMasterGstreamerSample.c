@@ -162,10 +162,29 @@ PVOID sendGstreamerAudioVideo(PVOID args)
                     //SW ENCODER
                     // "v4l2src ! videoconvert ! video/x-raw,format=I420,width=640,height=480 ! videoscale ! videoconvert ! x264enc tune=zerolatency bitrate=500 speed-preset=superfast"
                     // "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+
+
                     /*UDP SOURCE, KINESIS APP sink*/
-                    " v4l2src ! videoconvert ! video/x-raw,width=1280,height=960 ! "
+                    // "v4l2src ! videoconvert ! video/x-raw,width=1280,height=960 ! "
+                    // "x264enc bframes=0 speed-preset=veryfast bitrate=1000000 byte-stream=TRUE tune=zerolatency ! "
+                    // "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+
+                    "v4l2src device=/dev/video0 ! videoconvert ! tee name=t ! videoconvert ! video/x-raw,format=I420,width=640,height=480 ! timeoverlay draw-shadow=false draw-outline=false deltay=20 color=0xFF000000 ! "
+                    "x264enc bframes=0 speed-preset=veryfast bitrate=1000000 byte-stream=TRUE tune=zerolatency ! h264parse config-interval=-1 ! "
+                    "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! filesink location=/tmp/camera/video-$(date +\"%Y-%m-%d-%H-%M-%S\").h264 t. ! "
+                    "videoconvert ! video/x-raw,width=1280,height=960 ! "
                     "x264enc bframes=0 speed-preset=veryfast bitrate=1000000 byte-stream=TRUE tune=zerolatency ! "
-                    "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                    "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video"
+
+
+                    /*RTP*/
+                    // "rtspsrc location=rtsp://admin:twistrobotics123@91.145.211.14/cam/realmonitor?channel=1&subtype=00&authbasic=YWRtaW46bWF0YTIzMDM= !" 
+                    // "queue ! rtph264depay ! h264parse ! splitmuxsink  location=/tmp/camera/video%03d.mp4 max-files=10  max-size-time=300000000000 "
+                    // "decodebin ! autovideoconvert ! "   
+                    // "x264enc bframes=0 speed-preset=veryfast bitrate=1000000 byte-stream=TRUE tune=zerolatency ! "
+                    // "video/x-h264,stream-format=byte-stream,alignment=au,profile=baseline ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                    
+                    
 
                     // "autovideosrc ! queue ! videoconvert ! video/x-raw,width=1280,height=720,framerate=[30/1,10000000/333333] ! "
                     // "x264enc bframes=0 speed-preset=veryfast bitrate=512 byte-stream=TRUE tune=zerolatency ! "
