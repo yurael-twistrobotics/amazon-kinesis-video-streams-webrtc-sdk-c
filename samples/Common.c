@@ -12,21 +12,49 @@ VOID sigintHandler(INT32 sigNum)
     }
 }
 
+#define MASTER_DATA_CHANNEL_MESSAGE "This message is from the KVS Master"
 VOID onDataChannelMessage(UINT64 customData, PRtcDataChannel pDataChannel, BOOL isBinary, PBYTE pMessage, UINT32 pMessageLen)
 {
-    UNUSED_PARAM(customData);
-    UNUSED_PARAM(pDataChannel);
+    // UNUSED_PARAM(customData);
+    // UNUSED_PARAM(pDataChannel);
+    STATUS retStatus = STATUS_SUCCESS;
+    PSampleStreamingSession pSampleStreamingSession = (PSampleStreamingSession) customData;
+    CHK(pSampleStreamingSession != NULL && pSampleStreamingSession->pSampleConfiguration != NULL, STATUS_INTERNAL_ERROR);
+
     if (isBinary) {
         DLOGI("DataChannel Binary Message");
     } else {
-        DLOGI("DataChannel String Message: %.*s\n", pMessageLen, pMessage);
+        DLOGI("DataChannel String Message from (%s, %s): %.*s\n", pSampleStreamingSession->peerId, pDataChannel->name, pMessageLen, pMessage);
     }
+    // Send a response to the message sent by the viewer
+    retStatus = dataChannelSend(pDataChannel, FALSE, (PBYTE) MASTER_DATA_CHANNEL_MESSAGE, STRLEN(MASTER_DATA_CHANNEL_MESSAGE));
+    if (retStatus != STATUS_SUCCESS) {
+        DLOGI("[KVS Master] dataChannelSend(): operation returned status code: 0x%08x \n", retStatus);
+    }
+
+CleanUp:
+
+    CHK_LOG_ERR(retStatus);
 }
 
 VOID onDataChannel(UINT64 customData, PRtcDataChannel pRtcDataChannel)
 {
+    STATUS retStatus = STATUS_SUCCESS;
     DLOGI("New DataChannel has been opened %s \n", pRtcDataChannel->name);
+    PSampleStreamingSession pSampleStreamingSession = (PSampleStreamingSession) customData;
+    CHK(pSampleStreamingSession != NULL && pSampleStreamingSession->pSampleConfiguration != NULL, STATUS_INTERNAL_ERROR);
+
+    if (pSampleStreamingSession->pRtcDataChannel) {
+        DLOGE("Data Channel for peer is opened with name %s. Setting new data channel value to %s!\n", pSampleStreamingSession->pRtcDataChannel->name, pRtcDataChannel->name);
+    }
+    pSampleStreamingSession->pRtcDataChannel = pRtcDataChannel;
+    PSampleConfiguration pSampleConfiguration = pSampleStreamingSession->pSampleConfiguration;
+
     dataChannelOnMessage(pRtcDataChannel, customData, onDataChannelMessage);
+
+CleanUp:
+
+    CHK_LOG_ERR(retStatus);
 }
 
 VOID onConnectionStateChange(UINT64 customData, RTC_PEER_CONNECTION_STATE newState)
@@ -481,6 +509,17 @@ STATUS createSampleStreamingSession(PSampleConfiguration pSampleConfiguration, P
     CHK_STATUS(transceiverOnBandwidthEstimation(pSampleStreamingSession->pAudioRtcRtpTransceiver, (UINT64) pSampleStreamingSession,
                                                 sampleBandwidthEstimationHandler));
 
+
+    if (!pSampleStreamingSession->pRtcDataChannelMaster) {
+        DLOGI("[KVS Master] Creating dataChannel 'kvsDataChannelMaster'");
+        CHK_STATUS(createDataChannel(pSampleStreamingSession->pPeerConnection,
+                                     (PCHAR) "kvsDataChannelMaster",
+                                     NULL,
+                                     &pSampleStreamingSession->pRtcDataChannelMaster));
+    } else {
+        DLOGE("[KVS Master] dataChannel 'kvsDataChannelMaster' has already initialized!");
+    }
+
 CleanUp:
 
     if (STATUS_FAILED(retStatus) && pSampleStreamingSession != NULL) {
@@ -817,6 +856,21 @@ STATUS sessionCleanupWait(PSampleConfiguration pSampleConfiguration)
                     pSampleConfiguration->sampleStreamingSessionList[pSampleConfiguration->streamingSessionCount];
                 ATOMIC_STORE_BOOL(&pSampleConfiguration->updatingSampleStreamingSessionList, FALSE);
                 CHK_STATUS(freeSampleStreamingSession(&pSampleStreamingSession));
+            }
+        }
+
+        for (i = 0; i < pSampleConfiguration->streamingSessionCount; ++i) {
+            pSampleStreamingSession = pSampleConfiguration->sampleStreamingSessionList[i];
+            PRtcDataChannel pDataChannel = pSampleStreamingSession->pRtcDataChannelMaster;
+            if (pDataChannel) {
+                // Send a response to the message sent by the viewer
+                STATUS retStatus = STATUS_SUCCESS;
+                retStatus = dataChannelSend(pDataChannel, FALSE, (PBYTE) MASTER_DATA_CHANNEL_MESSAGE, STRLEN(MASTER_DATA_CHANNEL_MESSAGE));
+                if (retStatus == STATUS_SUCCESS) {
+                    DLOGI("[KVS Master] Sent message to (%s, %s)", pSampleStreamingSession->peerId, pDataChannel->name);
+                } else {
+                    DLOGI("[KVS Master] dataChannelSend(): operation returned status code: 0x%08x \n", retStatus);
+                }
             }
         }
 

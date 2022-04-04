@@ -13,8 +13,8 @@ GstFlowReturn on_new_sample(GstElement* sink, gpointer data, UINT64 trackid)
     GstFlowReturn ret = GST_FLOW_OK;
     GstSample* sample = NULL;
     GstMapInfo info;
-    GstSegment* segment;
-    GstClockTime buf_pts;
+    // GstSegment* segment;
+    // GstClockTime buf_pts;
     Frame frame;
     STATUS status;
     PSampleConfiguration pSampleConfiguration = (PSampleConfiguration) data;
@@ -33,21 +33,21 @@ GstFlowReturn on_new_sample(GstElement* sink, gpointer data, UINT64 trackid)
     buffer = gst_sample_get_buffer(sample);
     isDroppable = GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_CORRUPTED) || GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DECODE_ONLY) ||
         (GST_BUFFER_FLAGS(buffer) == GST_BUFFER_FLAG_DISCONT) ||
-        (GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DISCONT) && GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT)) ||
-        // drop if buffer contains header only and has invalid timestamp
-        !GST_BUFFER_PTS_IS_VALID(buffer);
+        (GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DISCONT) && GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT));
+        // // drop if buffer contains header only and has invalid timestamp
+        // || !GST_BUFFER_PTS_IS_VALID(buffer);
 
     if (!isDroppable) {
         delta = GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
 
         frame.flags = delta ? FRAME_FLAG_NONE : FRAME_FLAG_KEY_FRAME;
 
-        // convert from segment timestamp to running time in live mode.
-        segment = gst_sample_get_segment(sample);
-        buf_pts = gst_segment_to_running_time(segment, GST_FORMAT_TIME, buffer->pts);
-        if (!GST_CLOCK_TIME_IS_VALID(buf_pts)) {
-            printf("[KVS GStreamer Master] Frame contains invalid PTS dropping the frame. \n");
-        }
+        // // convert from segment timestamp to running time in live mode.
+        // segment = gst_sample_get_segment(sample);
+        // buf_pts = gst_segment_to_running_time(segment, GST_FORMAT_TIME, buffer->pts);
+        // if (!GST_CLOCK_TIME_IS_VALID(buf_pts)) {
+        //     printf("[KVS GStreamer Master] Frame contains invalid PTS dropping the frame. \n");
+        // }
 
         if (!(gst_buffer_map(buffer, &info, GST_MAP_READ))) {
             printf("[KVS GStreamer Master] on_new_sample(): Gst buffer mapping failed\n");
@@ -197,6 +197,14 @@ PVOID sendGstreamerAudioVideo(PVOID args)
                                      "audio/x-opus,rate=48000,channels=2 ! appsink sync=TRUE emit-signals=TRUE name=appsink-audio",
                                      &error);
             }
+            break;
+        
+        case SAMPLE_STREAMING_RTP:
+            pipeline =
+                gst_parse_launch("udpsrc port=5600 ! application/x-rtp,media=video,clock-rate=90000,encoding-name=H264 !"
+                                 "rtpjitterbuffer latency=100 mode=synced ! rtph264depay ! h264parse !"
+                                 "video/x-h264,stream-format=byte-stream,alignment=au ! appsink sync=TRUE emit-signals=TRUE name=appsink-video"
+                                , &error);
             break;
     }
 
@@ -397,6 +405,9 @@ INT32 main(INT32 argc, CHAR* argv[])
         } else if (STRCMP(argv[2], "audio-video") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_AUDIO_VIDEO;
             printf("[KVS Gstreamer Master] Streaming audio and video\n");
+        } else if (STRCMP(argv[2], "rtp-stream") == 0) {
+            pSampleConfiguration->mediaType = SAMPLE_STREAMING_RTP;
+            printf("[KVS Gstreamer Master] Streaming RTP received on port 5600/udp\n");
         } else {
             printf("[KVS Gstreamer Master] Unrecognized streaming type. Default to video-only\n");
         }
@@ -417,6 +428,9 @@ INT32 main(INT32 argc, CHAR* argv[])
             break;
         case SAMPLE_STREAMING_AUDIO_VIDEO:
             printf("[KVS GStreamer Master] streaming type audio-video");
+            break;
+        case SAMPLE_STREAMING_RTP:
+            printf("[KVS GStreamer Master] streaming type RTP video on port 5600/udp");
             break;
     }
 

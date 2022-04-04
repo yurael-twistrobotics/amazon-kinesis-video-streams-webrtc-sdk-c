@@ -34,6 +34,7 @@ extern "C" {
 typedef enum {
     SAMPLE_STREAMING_VIDEO_ONLY,
     SAMPLE_STREAMING_AUDIO_VIDEO,
+    SAMPLE_STREAMING_RTP,
 } SampleStreamingMediaType;
 
 typedef struct __SampleStreamingSession SampleStreamingSession;
@@ -94,6 +95,8 @@ struct __SampleStreamingSession {
     CHAR peerId[MAX_SIGNALING_CLIENT_ID_LEN + 1];
     TID receiveAudioVideoSenderTid;
     UINT64 firstSdpMsgReceiveTime;
+    PRtcDataChannel pRtcDataChannel;
+    PRtcDataChannel pRtcDataChannelMaster;
 
     // this is called when the SampleStreamingSession is being freed
     StreamSessionShutdownCallback shutdownCallback;
