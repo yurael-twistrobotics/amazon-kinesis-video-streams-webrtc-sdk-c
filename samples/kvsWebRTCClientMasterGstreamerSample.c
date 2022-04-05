@@ -255,6 +255,140 @@ CleanUp:
     return (PVOID)(ULONG_PTR) retStatus;
 }
 
+GstFlowReturn on_new_sample_mavlink(GstElement* sink, gpointer data)
+{
+    GstBuffer* buffer;
+    GstFlowReturn ret = GST_FLOW_OK;
+    GstSample* sample = NULL;
+    GstMapInfo info;
+    // GstSegment* segment;
+    // GstClockTime buf_pts;
+    STATUS status;
+    PSampleConfiguration pSampleConfiguration = (PSampleConfiguration) data;
+    PSampleStreamingSession pSampleStreamingSession = NULL;
+    PRtcRtpTransceiver pRtcRtpTransceiver = NULL;
+    UINT32 i;
+
+    if (pSampleConfiguration == NULL) {
+        printf("[KVS GStreamer Master] on_new_sample(): operation returned status code: 0x%08x \n", STATUS_NULL_ARG);
+        goto CleanUp;
+    }
+
+    info.data = NULL;
+    sample = gst_app_sink_pull_sample(GST_APP_SINK(sink));
+
+    buffer = gst_sample_get_buffer(sample);
+
+    if (!(gst_buffer_map(buffer, &info, GST_MAP_READ))) {
+        printf("[KVS GStreamer Master] on_new_sample(): Gst buffer mapping failed\n");
+        goto CleanUp;
+    }
+
+    // frame.size = (UINT32) info.size;
+    // frame.frameData = (PBYTE) info.data;
+
+    if (!ATOMIC_LOAD_BOOL(&pSampleConfiguration->updatingSampleStreamingSessionList)) {
+        ATOMIC_INCREMENT(&pSampleConfiguration->streamingSessionListReadingThreadCount);
+        for (i = 0; i < pSampleConfiguration->streamingSessionCount; ++i) {
+            pSampleStreamingSession = pSampleConfiguration->sampleStreamingSessionList[i];
+            // frame.index = (UINT32) ATOMIC_INCREMENT(&pSampleStreamingSession->frameIndex);
+
+            PRtcDataChannel pDataChannel = pSampleStreamingSession->pRtcDataChannelMaster;
+            if (pDataChannel) {
+                // Send a response to the message sent by the viewer
+                STATUS retStatus = STATUS_SUCCESS;
+                // char msg[2048];
+                // sprintf(msg, "timestamp: %lu", frame.presentationTs);
+                // msg[2047] = 0;
+
+                retStatus = dataChannelSend(pDataChannel, TRUE, (PBYTE) info.data, (UINT32) info.size);
+                if (retStatus == STATUS_SUCCESS) {
+                    DLOGD("[KVS Master] on_new_sample_mavlink(): Sent message to (%s, %s)", pSampleStreamingSession->peerId, pDataChannel->name);
+                } else {
+                    DLOGI("[KVS Master] on_new_sample_mavlink(): operation returned status code: 0x%08x \n", retStatus);
+                }
+            }
+        }
+        ATOMIC_DECREMENT(&pSampleConfiguration->streamingSessionListReadingThreadCount);
+    }
+
+CleanUp:
+
+    if (info.data != NULL) {
+        gst_buffer_unmap(buffer, &info);
+    }
+
+    if (sample != NULL) {
+        gst_sample_unref(sample);
+    }
+
+    if (ATOMIC_LOAD_BOOL(&pSampleConfiguration->appTerminateFlag)) {
+        ret = GST_FLOW_EOS;
+    }
+
+    return ret;
+}
+
+PVOID sendGstreamerMavlink(PVOID args)
+{
+    STATUS retStatus = STATUS_SUCCESS;
+    GstElement *appsinkMavlink = NULL, *pipeline = NULL;
+    GstBus* bus;
+    GstMessage* msg;
+    GError* error = NULL;
+    PSampleConfiguration pSampleConfiguration = (PSampleConfiguration) args;
+
+    if (pSampleConfiguration == NULL) {
+        printf("[KVS GStreamer Master] sendGstreamerMavlink(): operation returned status code: 0x%08x \n", STATUS_NULL_ARG);
+        goto CleanUp;
+    }
+
+    pipeline =
+        gst_parse_launch("udpsrc port=5601 ! appsink drop=TRUE max-buffers=1 sync=TRUE emit-signals=TRUE name=appsink-mavlink"
+                        , &error);
+
+    if (pipeline == NULL) {
+        printf("[KVS GStreamer Master] sendGstreamerMavlink(): Failed to launch gstreamer, operation returned status code: 0x%08x \n",
+               STATUS_INTERNAL_ERROR);
+        goto CleanUp;
+    }
+
+    appsinkMavlink = gst_bin_get_by_name(GST_BIN(pipeline), "appsink-mavlink");
+
+    if (appsinkMavlink == NULL) {
+        printf("[KVS GStreamer Master] sendGstreamerMavlink(): cant find appsink, operation returned status code: 0x%08x \n",
+               STATUS_INTERNAL_ERROR);
+        goto CleanUp;
+    }
+
+    if (appsinkMavlink != NULL) {
+        g_signal_connect(appsinkMavlink, "new-sample", G_CALLBACK(on_new_sample_mavlink), (gpointer) pSampleConfiguration);
+    }
+
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+
+    /* block until error or EOS */
+    bus = gst_element_get_bus(pipeline);
+    msg = gst_bus_timed_pop_filtered(bus, GST_CLOCK_TIME_NONE, GST_MESSAGE_ERROR | GST_MESSAGE_EOS);
+
+    /* Free resources */
+    if (msg != NULL) {
+        gst_message_unref(msg);
+    }
+    gst_object_unref(bus);
+    gst_element_set_state(pipeline, GST_STATE_NULL);
+    gst_object_unref(pipeline);
+
+CleanUp:
+
+    if (error != NULL) {
+        printf("%s", error->message);
+        g_clear_error(&error);
+    }
+
+    return (PVOID)(ULONG_PTR) retStatus;
+}
+
 VOID onGstAudioFrameReady(UINT64 customData, PFrame pFrame)
 {
     GstFlowReturn ret;
@@ -389,6 +523,7 @@ INT32 main(INT32 argc, CHAR* argv[])
     }
 
     pSampleConfiguration->videoSource = sendGstreamerAudioVideo;
+    pSampleConfiguration->mavlinkSource = sendGstreamerMavlink;
     pSampleConfiguration->mediaType = SAMPLE_STREAMING_VIDEO_ONLY;
     pSampleConfiguration->receiveAudioVideoSource = receiveGstreamerAudioVideo;
     pSampleConfiguration->onDataChannel = onDataChannel;
@@ -490,6 +625,11 @@ CleanUp:
         if (pSampleConfiguration->videoSenderTid != (UINT64) NULL) {
             // Join the threads
             THREAD_JOIN(pSampleConfiguration->videoSenderTid, NULL);
+        }
+
+        if (pSampleConfiguration->mavlinkSenderTid != (UINT64) NULL) {
+            // Join the threads
+            THREAD_JOIN(pSampleConfiguration->mavlinkSenderTid, NULL);
         }
 
         if (pSampleConfiguration->enableFileLogging) {

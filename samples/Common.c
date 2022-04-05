@@ -271,6 +271,10 @@ STATUS handleOffer(PSampleConfiguration pSampleConfiguration, PSampleStreamingSe
             THREAD_CREATE(&pSampleConfiguration->videoSenderTid, pSampleConfiguration->videoSource, (PVOID) pSampleConfiguration);
         }
 
+        if (pSampleConfiguration->mavlinkSource != NULL) {
+            THREAD_CREATE(&pSampleConfiguration->mavlinkSenderTid, pSampleConfiguration->mavlinkSource, (PVOID) pSampleConfiguration);
+        }
+
         if (pSampleConfiguration->audioSource != NULL) {
             THREAD_CREATE(&pSampleConfiguration->audioSenderTid, pSampleConfiguration->audioSource, (PVOID) pSampleConfiguration);
         }
@@ -701,6 +705,7 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
 
     pSampleConfiguration->audioSenderTid = INVALID_TID_VALUE;
     pSampleConfiguration->videoSenderTid = INVALID_TID_VALUE;
+    pSampleConfiguration->mavlinkSenderTid = INVALID_TID_VALUE;
     pSampleConfiguration->signalingClientHandle = INVALID_SIGNALING_CLIENT_HANDLE_VALUE;
     pSampleConfiguration->sampleConfigurationObjLock = MUTEX_CREATE(TRUE);
     pSampleConfiguration->cvar = CVAR_CREATE();
@@ -856,21 +861,6 @@ STATUS sessionCleanupWait(PSampleConfiguration pSampleConfiguration)
                     pSampleConfiguration->sampleStreamingSessionList[pSampleConfiguration->streamingSessionCount];
                 ATOMIC_STORE_BOOL(&pSampleConfiguration->updatingSampleStreamingSessionList, FALSE);
                 CHK_STATUS(freeSampleStreamingSession(&pSampleStreamingSession));
-            }
-        }
-
-        for (i = 0; i < pSampleConfiguration->streamingSessionCount; ++i) {
-            pSampleStreamingSession = pSampleConfiguration->sampleStreamingSessionList[i];
-            PRtcDataChannel pDataChannel = pSampleStreamingSession->pRtcDataChannelMaster;
-            if (pDataChannel) {
-                // Send a response to the message sent by the viewer
-                STATUS retStatus = STATUS_SUCCESS;
-                retStatus = dataChannelSend(pDataChannel, FALSE, (PBYTE) MASTER_DATA_CHANNEL_MESSAGE, STRLEN(MASTER_DATA_CHANNEL_MESSAGE));
-                if (retStatus == STATUS_SUCCESS) {
-                    DLOGI("[KVS Master] Sent message to (%s, %s)", pSampleStreamingSession->peerId, pDataChannel->name);
-                } else {
-                    DLOGI("[KVS Master] dataChannelSend(): operation returned status code: 0x%08x \n", retStatus);
-                }
             }
         }
 

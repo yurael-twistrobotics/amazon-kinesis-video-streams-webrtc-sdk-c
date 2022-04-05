@@ -57,10 +57,12 @@ typedef struct {
     PBYTE pVideoFrameBuffer;
     UINT32 videoBufferSize;
     TID videoSenderTid;
+    TID mavlinkSenderTid;
     TID audioSenderTid;
     SampleStreamingMediaType mediaType;
     startRoutine audioSource;
     startRoutine videoSource;
+    startRoutine mavlinkSource;
     startRoutine receiveAudioVideoSource;
     RtcOnDataChannel onDataChannel;
 
