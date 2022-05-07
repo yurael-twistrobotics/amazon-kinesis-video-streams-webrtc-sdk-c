@@ -35,6 +35,7 @@ typedef enum {
     SAMPLE_STREAMING_VIDEO_ONLY,
     SAMPLE_STREAMING_AUDIO_VIDEO,
     SAMPLE_STREAMING_RTP,
+    SAMPLE_STREAMING_CUSTOM_PIPELINE,
 } SampleStreamingMediaType;
 
 typedef struct __SampleStreamingSession SampleStreamingSession;
@@ -77,6 +78,7 @@ typedef struct {
     UINT32 iceUriCount;
     SignalingClientCallbacks signalingClientCallbacks;
     SignalingClientInfo clientInfo;
+    PCHAR customPipeline;
 } SampleConfiguration, *PSampleConfiguration;
 
 typedef VOID (*StreamSessionShutdownCallback)(UINT64, PSampleStreamingSession);

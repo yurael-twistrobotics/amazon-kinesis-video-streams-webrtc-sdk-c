@@ -206,6 +206,10 @@ PVOID sendGstreamerAudioVideo(PVOID args)
                                  "video/x-h264,stream-format=byte-stream,alignment=au ! appsink sync=TRUE emit-signals=TRUE name=appsink-video"
                                 , &error);
             break;
+        
+        case SAMPLE_STREAMING_CUSTOM_PIPELINE:
+            pipeline = gst_parse_launch(pSampleConfiguration->customPipeline, &error);
+            break;
     }
 
     if (pipeline == NULL) {
@@ -543,6 +547,18 @@ INT32 main(INT32 argc, CHAR* argv[])
         } else if (STRCMP(argv[2], "rtp-stream") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_RTP;
             printf("[KVS Gstreamer Master] Streaming RTP received on port 5600/udp\n");
+        } else if (STRCMP(argv[2], "custom-pipeline") == 0) {
+            pSampleConfiguration->mediaType = SAMPLE_STREAMING_CUSTOM_PIPELINE;
+            if (argc > 3) {
+                pSampleConfiguration->customPipeline = argv[3];
+                printf("[KVS Gstreamer Master] Streaming using pipeline:\n");
+                printf("%s\n", pSampleConfiguration->customPipeline);
+            } else {
+                retStatus = STATUS_NULL_ARG;
+                printf("[KVS Gstreamer Master] Custom Pipleline not passed as 3rd parameter!!!\n");
+                goto CleanUp;
+            }
+            
         } else {
             printf("[KVS Gstreamer Master] Unrecognized streaming type. Default to video-only\n");
         }

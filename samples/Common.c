@@ -744,6 +744,7 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
     ATOMIC_STORE_BOOL(&pSampleConfiguration->recreateSignalingClient, FALSE);
 
     pSampleConfiguration->iceUriCount = 0;
+    pSampleConfiguration->customPipeline = NULL;
 
 CleanUp:
 
