@@ -207,6 +207,15 @@ PVOID sendGstreamerAudioVideo(PVOID args)
                                 , &error);
             break;
         
+        case SAMPLE_STREAMING_RTP_H265:
+            pipeline =
+                gst_parse_launch("udpsrc port=5600 ! application/x-rtp,media=video,clock-rate=90000,encoding-name=H265 !"
+                                 "rtpjitterbuffer latency=100 mode=4 ! rtph265depay ! h265parse !"
+                                 "vaapih265dec ! vaapih264enc ! h264parse !"
+                                 "video/x-h264,stream-format=byte-stream,alignment=au ! appsink sync=TRUE emit-signals=TRUE name=appsink-video"
+                                , &error);
+            break;
+        
         case SAMPLE_STREAMING_CUSTOM_PIPELINE:
             pipeline = gst_parse_launch(pSampleConfiguration->customPipeline, &error);
             break;
@@ -547,6 +556,9 @@ INT32 main(INT32 argc, CHAR* argv[])
         } else if (STRCMP(argv[2], "rtp-stream") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_RTP;
             printf("[KVS Gstreamer Master] Streaming RTP received on port 5600/udp\n");
+        } else if (STRCMP(argv[2], "rtp-stream-h265") == 0) {
+            pSampleConfiguration->mediaType = SAMPLE_STREAMING_RTP_H265;
+            printf("[KVS Gstreamer Master] Streaming RTP H265 received on port 5600/udp\n");
         } else if (STRCMP(argv[2], "custom-pipeline") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_CUSTOM_PIPELINE;
             if (argc > 3) {
@@ -582,6 +594,9 @@ INT32 main(INT32 argc, CHAR* argv[])
             break;
         case SAMPLE_STREAMING_RTP:
             printf("[KVS GStreamer Master] streaming type RTP video on port 5600/udp");
+            break;
+        case SAMPLE_STREAMING_RTP_H265:
+            printf("[KVS GStreamer Master] streaming type RTP H265 video on port 5600/udp");
             break;
     }
 
