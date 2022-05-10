@@ -8,7 +8,7 @@ message("OPEN_SRC_INSTALL_PREFIX=${OPEN_SRC_INSTALL_PREFIX}")
 
 find_package(PkgConfig REQUIRED)
 
-pkg_check_modules(GST gstreamer-1.0)
+pkg_check_modules(GST REQUIRED gstreamer-1.0)
 if(GST_FOUND)
 
   if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
