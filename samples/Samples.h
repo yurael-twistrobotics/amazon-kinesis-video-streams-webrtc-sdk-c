@@ -55,6 +55,7 @@ extern "C" {
 typedef enum {
     SAMPLE_STREAMING_VIDEO_ONLY,
     SAMPLE_STREAMING_AUDIO_VIDEO,
+    SAMPLE_STREAMING_CUSTOM_PIPELINE,
 } SampleStreamingMediaType;
 
 typedef struct __SampleStreamingSession SampleStreamingSession;
@@ -114,6 +115,7 @@ typedef struct {
 
     UINT32 pregenerateCertTimerId;
     PStackQueue pregeneratedCertificates; // Max MAX_RTCCONFIGURATION_CERTIFICATES certificates
+    PCHAR pCustomPipeline;
 } SampleConfiguration, *PSampleConfiguration;
 
 typedef struct {

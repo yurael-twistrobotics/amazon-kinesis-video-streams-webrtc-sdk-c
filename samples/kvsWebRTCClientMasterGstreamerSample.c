@@ -179,6 +179,11 @@ PVOID sendGstreamerAudioVideo(PVOID args)
                                      &error);
             }
             break;
+
+        case SAMPLE_STREAMING_CUSTOM_PIPELINE:
+            pipeline = gst_parse_launch(pSampleConfiguration->pCustomPipeline, &error);
+            break;
+
     }
 
     if (pipeline == NULL) {
@@ -189,6 +194,11 @@ PVOID sendGstreamerAudioVideo(PVOID args)
 
     appsinkVideo = gst_bin_get_by_name(GST_BIN(pipeline), "appsink-video");
     appsinkAudio = gst_bin_get_by_name(GST_BIN(pipeline), "appsink-audio");
+
+    if (appsinkVideo == NULL) {
+        printf("[KVS GStreamer Master] sendGstreamerAudioVideo(): cant find appsink-video, operation returned status code: 0x%08x \n", STATUS_INTERNAL_ERROR);
+        goto CleanUp;
+    }
 
     if (!(appsinkVideo != NULL || appsinkAudio != NULL)) {
         printf("[KVS GStreamer Master] sendGstreamerAudioVideo(): cant find appsink, operation returned status code: 0x%08x \n",
@@ -204,7 +214,8 @@ PVOID sendGstreamerAudioVideo(PVOID args)
         g_signal_connect(appsinkAudio, "new-sample", G_CALLBACK(on_new_sample_audio), (gpointer) pSampleConfiguration);
     }
 
-    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    GstStateChangeReturn ret = gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    printf("[KVS GStreamer Master] sendGstreamerAudioVideo(): gst_element_set_state(pipeline, GST_STATE_PLAYING) returned status code: 0x%08x \n", ret);
 
     /* block until error or EOS */
     bus = gst_element_get_bus(pipeline);
@@ -337,7 +348,7 @@ INT32 main(INT32 argc, CHAR* argv[])
 {
     STATUS retStatus = STATUS_SUCCESS;
     PSampleConfiguration pSampleConfiguration = NULL;
-    PCHAR pChannelName;
+    PCHAR pChannelName, pMediaType;
 
     SET_INSTRUMENTED_ALLOCATORS();
 
@@ -349,8 +360,14 @@ INT32 main(INT32 argc, CHAR* argv[])
 #ifdef IOT_CORE_ENABLE_CREDENTIALS
     CHK_ERR((pChannelName = getenv(IOT_CORE_THING_NAME)) != NULL, STATUS_INVALID_OPERATION, "AWS_IOT_CORE_THING_NAME must be set");
 #else
-    pChannelName = argc > 1 ? argv[1] : SAMPLE_CHANNEL_NAME;
+    // pChannelName = argc > 1 ? argv[1] : SAMPLE_CHANNEL_NAME;
 #endif
+    CHK_ERR((pChannelName = getenv("AWS_KVS_CHANNEL_NAME")) != NULL, STATUS_INVALID_OPERATION, "AWS_KVS_CHANNEL_NAME must be set");
+    CHK_ERR((pMediaType = getenv("MEDIA_TYPE")) != NULL, STATUS_INVALID_OPERATION, "MEDIA_TYPE must be set");
+
+    DLOGI("[KVS Master] main(): AWS_KVS_CHANNEL_NAME: %s \n", pChannelName);
+    DLOGI("[KVS Master] main(): MEDIA_TYPE: %s \n", pMediaType);
+
 
     retStatus = createSampleConfiguration(pChannelName, SIGNALING_CHANNEL_ROLE_TYPE_MASTER, TRUE, TRUE, &pSampleConfiguration);
     if (retStatus != STATUS_SUCCESS) {
@@ -379,19 +396,25 @@ INT32 main(INT32 argc, CHAR* argv[])
     gst_init(&argc, &argv);
     printf("[KVS Gstreamer Master] Finished initializing GStreamer\n");
 
-    if (argc > 2) {
-        if (STRCMP(argv[2], "video-only") == 0) {
+    // if (argc > 2) {
+        if (STRCMP(pMediaType, "video-only") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_VIDEO_ONLY;
             printf("[KVS Gstreamer Master] Streaming video only\n");
-        } else if (STRCMP(argv[2], "audio-video") == 0) {
+        } else if (STRCMP(pMediaType, "audio-video") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_AUDIO_VIDEO;
             printf("[KVS Gstreamer Master] Streaming audio and video\n");
+        } else if (STRCMP(pMediaType, "custom-pipeline") == 0) {
+            pSampleConfiguration->mediaType = SAMPLE_STREAMING_CUSTOM_PIPELINE;
+            printf("[KVS Gstreamer Master] Streaming with GST custom pipeline\n");
+
+            CHK_ERR((pSampleConfiguration->pCustomPipeline = getenv("GST_CUSTOM_PIPELINE")) != NULL, STATUS_INVALID_OPERATION, "GST_CUSTOM_PIPELINE must be set");
+            DLOGI("[KVS Master] main(): GST_CUSTOM_PIPELINE: %s \n", pSampleConfiguration->pCustomPipeline);
         } else {
             printf("[KVS Gstreamer Master] Unrecognized streaming type. Default to video-only\n");
         }
-    } else {
-        printf("[KVS Gstreamer Master] Streaming video only\n");
-    }
+    // } else {
+    //     printf("[KVS Gstreamer Master] Streaming video only\n");
+    // }
 
     if (argc > 3) {
         if (STRCMP(argv[3], "testsrc") == 0) {
@@ -402,10 +425,13 @@ INT32 main(INT32 argc, CHAR* argv[])
 
     switch (pSampleConfiguration->mediaType) {
         case SAMPLE_STREAMING_VIDEO_ONLY:
-            printf("[KVS GStreamer Master] streaming type video-only");
+            printf("[KVS GStreamer Master] streaming type video-only\n");
             break;
         case SAMPLE_STREAMING_AUDIO_VIDEO:
-            printf("[KVS GStreamer Master] streaming type audio-video");
+            printf("[KVS GStreamer Master] streaming type audio-video\n");
+            break;
+        case SAMPLE_STREAMING_CUSTOM_PIPELINE:
+            printf("[KVS GStreamer Master] streaming type audio-video. GST custom pipeline\n");
             break;
     }
 
