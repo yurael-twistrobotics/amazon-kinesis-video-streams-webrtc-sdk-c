@@ -122,6 +122,7 @@ PVOID sendGstreamerAudioVideo(PVOID args)
     GstMessage* msg;
     GError* error = NULL;
     PSampleConfiguration pSampleConfiguration = (PSampleConfiguration) args;
+    CHAR pipelineStr[2048];
 
     if (pSampleConfiguration == NULL) {
         printf("[KVS GStreamer Master] sendGstreamerAudioVideo(): operation returned status code: 0x%08x \n", STATUS_NULL_ARG);
@@ -186,6 +187,18 @@ PVOID sendGstreamerAudioVideo(PVOID args)
                                  "rtpjitterbuffer latency=100 mode=synced ! rtph264depay ! h264parse !"
                                  "video/x-h264,stream-format=byte-stream,alignment=au ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
                                  &error);
+            break;
+
+        case SAMPLE_STREAMING_RTSP:
+            snprintf(pipelineStr, 2048,
+                     "rtspsrc location=%s latency=100 ! "
+                     "queue ! rtph264depay ! video/x-h264,stream-format=byte-stream,alignment=au ! "
+                     "h264parse ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
+                     pSampleConfiguration->pRtspLink);
+            
+            printf("[KVS GStreamer Master] sendGstreamerAudioVideo(): Using pipeline for RTSP: %s\n", pipelineStr);
+            
+            pipeline = gst_parse_launch(pipelineStr, &error);
             break;
 
         case SAMPLE_STREAMING_CUSTOM_PIPELINE:
@@ -356,7 +369,7 @@ INT32 main(INT32 argc, CHAR* argv[])
 {
     STATUS retStatus = STATUS_SUCCESS;
     PSampleConfiguration pSampleConfiguration = NULL;
-    PCHAR pChannelName, pMediaType;
+    PCHAR pChannelName, pMediaType, pRtspLink;
 
     SET_INSTRUMENTED_ALLOCATORS();
 
@@ -408,18 +421,29 @@ INT32 main(INT32 argc, CHAR* argv[])
         if (STRCMP(pMediaType, "video-only") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_VIDEO_ONLY;
             printf("[KVS Gstreamer Master] Streaming video only\n");
+        
         } else if (STRCMP(pMediaType, "audio-video") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_AUDIO_VIDEO;
             printf("[KVS Gstreamer Master] Streaming audio and video\n");
+        
         } else if (STRCMP(pMediaType, "rtp-stream") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_RTP;
             printf("[KVS Gstreamer Master] Streaming RTP received on port 5600/udp\n");
+        
+        } else if (STRCMP(pMediaType, "rtsp-stream") == 0) {
+            pSampleConfiguration->mediaType = SAMPLE_STREAMING_RTSP;
+            printf("[KVS Gstreamer Master] Streaming with GST RTSP\n");
+
+            CHK_ERR((pSampleConfiguration->pRtspLink = getenv("RTSP_LINK")) != NULL, STATUS_INVALID_OPERATION, "RTSP_LINK must be set");
+            DLOGI("[KVS Master] main(): RTSP_LINK: %s \n", pSampleConfiguration->pRtspLink);
+        
         } else if (STRCMP(pMediaType, "custom-pipeline") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_CUSTOM_PIPELINE;
             printf("[KVS Gstreamer Master] Streaming with GST custom pipeline\n");
 
             CHK_ERR((pSampleConfiguration->pCustomPipeline = getenv("GST_CUSTOM_PIPELINE")) != NULL, STATUS_INVALID_OPERATION, "GST_CUSTOM_PIPELINE must be set");
             DLOGI("[KVS Master] main(): GST_CUSTOM_PIPELINE: %s \n", pSampleConfiguration->pCustomPipeline);
+        
         } else {
             printf("[KVS Gstreamer Master] Unrecognized streaming type. Default to video-only\n");
         }
@@ -443,6 +467,9 @@ INT32 main(INT32 argc, CHAR* argv[])
             break;
         case SAMPLE_STREAMING_RTP:
             printf("[KVS GStreamer Master] streaming type RTP video on port 5600/udp\n");
+            break;
+        case SAMPLE_STREAMING_RTSP:
+            printf("[KVS GStreamer Master] streaming type RTSP video %s\n", pSampleConfiguration->pRtspLink);
             break;
         case SAMPLE_STREAMING_CUSTOM_PIPELINE:
             printf("[KVS GStreamer Master] streaming type audio-video. GST custom pipeline\n");

@@ -56,6 +56,7 @@ typedef enum {
     SAMPLE_STREAMING_VIDEO_ONLY,
     SAMPLE_STREAMING_AUDIO_VIDEO,
     SAMPLE_STREAMING_RTP,
+    SAMPLE_STREAMING_RTSP,
     SAMPLE_STREAMING_CUSTOM_PIPELINE,
 } SampleStreamingMediaType;
 
@@ -117,6 +118,7 @@ typedef struct {
     UINT32 pregenerateCertTimerId;
     PStackQueue pregeneratedCertificates; // Max MAX_RTCCONFIGURATION_CERTIFICATES certificates
     PCHAR pCustomPipeline;
+    PCHAR pRtspLink;
 } SampleConfiguration, *PSampleConfiguration;
 
 typedef struct {
