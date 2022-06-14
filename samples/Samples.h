@@ -93,6 +93,7 @@ typedef struct {
     SampleStreamingMediaType mediaType;
     startRoutine audioSource;
     startRoutine videoSource;
+    startRoutine mavlinkSource;
     startRoutine receiveAudioVideoSource;
     RtcOnDataChannel onDataChannel;
 
@@ -148,6 +149,7 @@ struct __SampleStreamingSession {
     BOOL firstFrame;
     RtcMetricsHistory rtcMetricsHistory;
     BOOL remoteCanTrickleIce;
+    PRtcDataChannel pRtcDataChannelMaster;
 
     // this is called when the SampleStreamingSession is being freed
     StreamSessionShutdownCallback shutdownCallback;

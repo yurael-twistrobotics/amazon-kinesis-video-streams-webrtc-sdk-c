@@ -153,6 +153,7 @@ PVOID mediaSenderRoutine(PVOID customData)
     STATUS retStatus = STATUS_SUCCESS;
     PSampleConfiguration pSampleConfiguration = (PSampleConfiguration) customData;
     TID videoSenderTid = INVALID_TID_VALUE, audioSenderTid = INVALID_TID_VALUE;
+    TID mavlinkSenderTid = INVALID_TID_VALUE;
 
     MUTEX_LOCK(pSampleConfiguration->sampleConfigurationObjLock);
     while (!ATOMIC_LOAD_BOOL(&pSampleConfiguration->connected) && !ATOMIC_LOAD_BOOL(&pSampleConfiguration->appTerminateFlag)) {
@@ -166,12 +167,20 @@ PVOID mediaSenderRoutine(PVOID customData)
         THREAD_CREATE(&videoSenderTid, pSampleConfiguration->videoSource, (PVOID) pSampleConfiguration);
     }
 
+    if (pSampleConfiguration->mavlinkSource != NULL) {
+        THREAD_CREATE(&mavlinkSenderTid, pSampleConfiguration->mavlinkSource, (PVOID) pSampleConfiguration);
+    }
+
     if (pSampleConfiguration->audioSource != NULL) {
         THREAD_CREATE(&audioSenderTid, pSampleConfiguration->audioSource, (PVOID) pSampleConfiguration);
     }
 
     if (videoSenderTid != INVALID_TID_VALUE) {
         THREAD_JOIN(videoSenderTid, NULL);
+    }
+
+    if (mavlinkSenderTid != INVALID_TID_VALUE) {
+        THREAD_JOIN(mavlinkSenderTid, NULL);
     }
 
     if (audioSenderTid != INVALID_TID_VALUE) {
@@ -509,6 +518,16 @@ STATUS createSampleStreamingSession(PSampleConfiguration pSampleConfiguration, P
                                                          sampleSenderBandwidthEstimationHandler));
     pSampleStreamingSession->firstFrame = TRUE;
     pSampleStreamingSession->startUpLatency = 0;
+
+    if (!pSampleStreamingSession->pRtcDataChannelMaster) {
+        DLOGI("[KVS Master] Creating dataChannel 'kvsDataChannelMaster'");
+        CHK_STATUS(createDataChannel(pSampleStreamingSession->pPeerConnection,
+                                     (PCHAR) "kvsDataChannelMaster",
+                                     NULL,
+                                     &pSampleStreamingSession->pRtcDataChannelMaster));
+    } else {
+        DLOGE("[KVS Master] dataChannel 'kvsDataChannelMaster' has already initialized!");
+    }
 CleanUp:
 
     if (STATUS_FAILED(retStatus) && pSampleStreamingSession != NULL) {
