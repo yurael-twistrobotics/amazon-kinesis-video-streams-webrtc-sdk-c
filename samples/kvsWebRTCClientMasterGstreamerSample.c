@@ -183,7 +183,7 @@ PVOID sendGstreamerAudioVideo(PVOID args)
 
         case SAMPLE_STREAMING_RTP:
             pipeline =
-                gst_parse_launch("udpsrc port=5600 ! application/x-rtp,media=video,clock-rate=90000,encoding-name=H264 !"
+                gst_parse_launch("udpsrc port=5700 ! application/x-rtp,media=video,clock-rate=90000,encoding-name=H264 !"
                                  "rtpjitterbuffer latency=100 mode=synced ! rtph264depay ! h264parse !"
                                  "video/x-h264,stream-format=byte-stream,alignment=au ! appsink sync=TRUE emit-signals=TRUE name=appsink-video",
                                  &error);
@@ -305,7 +305,7 @@ GstFlowReturn on_new_sample_mavlink(GstElement* sink, gpointer data)
             // sprintf(msg, "timestamp: %lu", frame.presentationTs);
             // msg[2047] = 0;
 
-            retStatus = dataChannelSend(pDataChannel, TRUE, (PBYTE) info.data, (UINT32) info.size);
+            retStatus = dataChannelSend(pDataChannel, FALSE, (PBYTE) info.data, (UINT32) info.size);
             if (retStatus == STATUS_SUCCESS) {
                 DLOGD("[KVS Master] on_new_sample_mavlink(): Sent message to (%s, %s)", pSampleStreamingSession->peerId, pDataChannel->name);
             } else {
@@ -561,7 +561,7 @@ INT32 main(INT32 argc, CHAR* argv[])
         
         } else if (STRCMP(pMediaType, "rtp-stream") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_RTP;
-            printf("[KVS Gstreamer Master] Streaming RTP received on port 5600/udp\n");
+            printf("[KVS Gstreamer Master] Streaming RTP received on port 5700/udp\n");
         
         } else if (STRCMP(pMediaType, "rtsp-stream") == 0) {
             pSampleConfiguration->mediaType = SAMPLE_STREAMING_RTSP;
@@ -599,7 +599,7 @@ INT32 main(INT32 argc, CHAR* argv[])
             printf("[KVS GStreamer Master] streaming type audio-video\n");
             break;
         case SAMPLE_STREAMING_RTP:
-            printf("[KVS GStreamer Master] streaming type RTP video on port 5600/udp\n");
+            printf("[KVS GStreamer Master] streaming type RTP video on port 5700/udp\n");
             break;
         case SAMPLE_STREAMING_RTSP:
             printf("[KVS GStreamer Master] streaming type RTSP video %s\n", pSampleConfiguration->pRtspLink);
