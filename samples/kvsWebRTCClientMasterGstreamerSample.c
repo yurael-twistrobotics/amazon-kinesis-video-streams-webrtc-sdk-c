@@ -307,7 +307,7 @@ GstFlowReturn on_new_sample_mavlink(GstElement* sink, gpointer data)
 
             retStatus = dataChannelSend(pDataChannel, FALSE, (PBYTE) info.data, (UINT32) info.size);
             if (retStatus == STATUS_SUCCESS) {
-                DLOGD("[KVS Master] on_new_sample_mavlink(): Sent message to (%s, %s)", pSampleStreamingSession->peerId, pDataChannel->name);
+                // DLOGD("[KVS Master] on_new_sample_mavlink(): Sent message to (%s, %s)", pSampleStreamingSession->peerId, pDataChannel->name);
             } else {
                 DLOGI("[KVS Master] on_new_sample_mavlink(): operation returned status code: 0x%08x \n", retStatus);
             }
