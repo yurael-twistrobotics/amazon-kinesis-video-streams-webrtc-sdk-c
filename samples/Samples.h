@@ -46,6 +46,8 @@ extern "C" {
 #define IOT_CORE_ROLE_ALIAS          ((PCHAR) "AWS_IOT_CORE_ROLE_ALIAS")
 #define IOT_CORE_THING_NAME          ((PCHAR) "AWS_IOT_CORE_THING_NAME")
 
+#define ZMQ_PUB_ENDPOINT_PORT ((PCHAR) "ZMQ_PUB_ENDPOINT_PORT")
+
 #define MASTER_DATA_CHANNEL_MESSAGE "This message is from the KVS Master"
 #define VIEWER_DATA_CHANNEL_MESSAGE "This message is from the KVS Viewer"
 
@@ -120,6 +122,8 @@ typedef struct {
     PStackQueue pregeneratedCertificates; // Max MAX_RTCCONFIGURATION_CERTIFICATES certificates
     PCHAR pCustomPipeline;
     PCHAR pRtspLink;
+
+    PVOID pZSock;
 } SampleConfiguration, *PSampleConfiguration;
 
 typedef struct {

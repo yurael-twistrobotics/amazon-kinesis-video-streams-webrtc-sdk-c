@@ -1,5 +1,6 @@
 #define LOG_CLASS "WebRtcSamples"
 #include "Samples.h"
+#include "czmq.h"
 
 PSampleConfiguration gSampleConfiguration = NULL;
 
@@ -14,19 +15,42 @@ VOID sigintHandler(INT32 sigNum)
 
 VOID onDataChannelMessage(UINT64 customData, PRtcDataChannel pDataChannel, BOOL isBinary, PBYTE pMessage, UINT32 pMessageLen)
 {
-    UNUSED_PARAM(customData);
-    UNUSED_PARAM(pDataChannel);
-    if (isBinary) {
-        DLOGI("DataChannel Binary Message");
+    PSampleStreamingSession streamingSession = NULL;
+    PSampleConfiguration sampleConf = NULL;
+    zsock_t *zsock = NULL;
+    INT32 rc = 0;
+
+    if (NULL != (streamingSession = (PSampleStreamingSession)customData) && 
+        NULL != (sampleConf = streamingSession->pSampleConfiguration) && 
+        NULL != (zsock = (zsock_t *)sampleConf->pZSock)) {
+        
+        assert(zsock);
+
+        // note: char* or binary message is encoded the same way in zmq
+        // topic is 'webrtc', it should be first part of the message
+        rc = zsock_send(zsock, "sb", "webrtc", pMessage, pMessageLen);
+
+        if (rc != 0) {
+            DLOGW("ZMQ publish of received data failed");
+        }
+
     } else {
-        DLOGI("DataChannel String Message: %.*s\n", pMessageLen, pMessage);
+
+        // log inconmind data, send dummy reply
+        if (isBinary) {
+            DLOGI("DataChannel Binary Message");
+        } else {
+            DLOGI("DataChannel String Message: %.*s\n", pMessageLen, pMessage);
+        }
+        // Send a response to the message sent by the viewer
+        STATUS retStatus = STATUS_SUCCESS;
+        retStatus = dataChannelSend(pDataChannel, FALSE, (PBYTE) MASTER_DATA_CHANNEL_MESSAGE, STRLEN(MASTER_DATA_CHANNEL_MESSAGE));
+        if (retStatus != STATUS_SUCCESS) {
+            DLOGI("[KVS Master] dataChannelSend(): operation returned status code: 0x%08x \n", retStatus);
+        }
     }
-    // Send a response to the message sent by the viewer
-    STATUS retStatus = STATUS_SUCCESS;
-    retStatus = dataChannelSend(pDataChannel, FALSE, (PBYTE) MASTER_DATA_CHANNEL_MESSAGE, STRLEN(MASTER_DATA_CHANNEL_MESSAGE));
-    if (retStatus != STATUS_SUCCESS) {
-        DLOGI("[KVS Master] dataChannelSend(): operation returned status code: 0x%08x \n", retStatus);
-    }
+
+    // fflush(NULL);
 }
 
 VOID onDataChannel(UINT64 customData, PRtcDataChannel pRtcDataChannel)
@@ -720,9 +744,10 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
                                  PSampleConfiguration* ppSampleConfiguration)
 {
     STATUS retStatus = STATUS_SUCCESS;
-    PCHAR pAccessKey, pSecretKey, pSessionToken, pLogLevel;
+    PCHAR pAccessKey, pSecretKey, pSessionToken, pLogLevel, pZmqPubPort;
     PSampleConfiguration pSampleConfiguration = NULL;
     UINT32 logLevel = LOG_LEVEL_DEBUG;
+    UINT32 zmqPubPort = 0;
 
     CHK(ppSampleConfiguration != NULL, STATUS_NULL_ARG);
 
@@ -805,6 +830,8 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
     pSampleConfiguration->iceCandidatePairStatsTimerId = MAX_UINT32;
     pSampleConfiguration->pregenerateCertTimerId = MAX_UINT32;
 
+    pSampleConfiguration->pZSock = NULL;
+
     ATOMIC_STORE_BOOL(&pSampleConfiguration->interrupted, FALSE);
     ATOMIC_STORE_BOOL(&pSampleConfiguration->mediaThreadStarted, FALSE);
     ATOMIC_STORE_BOOL(&pSampleConfiguration->appTerminateFlag, FALSE);
@@ -827,6 +854,19 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
     CHK_STATUS(stackQueueCreate(&pSampleConfiguration->pPendingSignalingMessageForRemoteClient));
     CHK_STATUS(hashTableCreateWithParams(SAMPLE_HASH_TABLE_BUCKET_COUNT, SAMPLE_HASH_TABLE_BUCKET_LENGTH,
                                          &pSampleConfiguration->pRtcPeerConnectionForRemoteClient));
+
+    // create zmq pub socket (redistribute all datachannel's incoming data)
+    if (NULL != (pZmqPubPort = getenv(ZMQ_PUB_ENDPOINT_PORT)) && STATUS_SUCCESS == STRTOUI32(pZmqPubPort, NULL, 10, &zmqPubPort)) {
+        zsock_t *zsock = zsock_new(ZMQ_PUB);
+        assert(zsock);
+        if (zsock_bind(zsock, "tcp://127.0.0.1:%d", zmqPubPort) == zmqPubPort) {
+            pSampleConfiguration->pZSock = (PVOID)zsock;
+            DLOGI("ZMQ PUB: bound to: tcp://127.0.0.1:%d", zmqPubPort);
+        } else {
+            DLOGI("ZMQ PUB: bind FAILED");
+            zsock_destroy(&zsock);
+        }
+    }
 
 CleanUp:
 
@@ -1123,6 +1163,10 @@ STATUS freeSampleConfiguration(PSampleConfiguration* ppSampleConfiguration)
         CHK_LOG_ERR(stackQueueClear(pSampleConfiguration->pregeneratedCertificates, FALSE));
         CHK_LOG_ERR(stackQueueFree(pSampleConfiguration->pregeneratedCertificates));
         pSampleConfiguration->pregeneratedCertificates = NULL;
+    }
+
+    if (pSampleConfiguration->pZSock != NULL) {
+        zsock_destroy((zsock_t *)&(pSampleConfiguration->pZSock));
     }
 
     SAFE_MEMFREE(*ppSampleConfiguration);
