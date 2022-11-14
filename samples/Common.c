@@ -857,15 +857,15 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
 
     // create zmq pub socket (redistribute all datachannel's incoming data)
     if (NULL != (pZmqPubPort = getenv(ZMQ_PUB_ENDPOINT_PORT)) && STATUS_SUCCESS == STRTOUI32(pZmqPubPort, NULL, 10, &zmqPubPort)) {
+        CHAR endpoint[128] = {0};
         zsock_t *zsock = zsock_new(ZMQ_PUB);
         assert(zsock);
-        if (zsock_bind(zsock, "tcp://127.0.0.1:%d", zmqPubPort) == zmqPubPort) {
-            pSampleConfiguration->pZSock = (PVOID)zsock;
-            DLOGI("ZMQ PUB: bound to: tcp://127.0.0.1:%d", zmqPubPort);
-        } else {
-            DLOGI("ZMQ PUB: bind FAILED");
-            zsock_destroy(&zsock);
-        }
+
+        SPRINTF(endpoint, "tcp://127.0.0.1:%d", zmqPubPort);
+        CHK_ERR(zsock_bind(zsock, endpoint) == zmqPubPort, STATUS_INVALID_OPERATION, "ZMQ PUB: bind FAILED on '%s'", endpoint);
+        
+        pSampleConfiguration->pZSock = (PVOID)zsock;
+        DLOGI("ZMQ PUB: bound to '%s'", endpoint);
     }
 
 CleanUp:
