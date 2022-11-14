@@ -22,13 +22,13 @@ VOID onDataChannelMessage(UINT64 customData, PRtcDataChannel pDataChannel, BOOL 
 
     if (NULL != (streamingSession = (PSampleStreamingSession)customData) && 
         NULL != (sampleConf = streamingSession->pSampleConfiguration) && 
-        NULL != (zsock = (zsock_t *)sampleConf->pZSock)) {
+        NULL != (zsock = (zsock_t *)sampleConf->pZmqSock)) {
         
         assert(zsock);
 
         // note: char* or binary message is encoded the same way in zmq
-        // topic is 'webrtc', it should be first part of the message
-        rc = zsock_send(zsock, "sb", "webrtc", pMessage, pMessageLen);
+        // topic should be first part of the message
+        rc = zsock_send(zsock, "sb", sampleConf->pZmqPubTopic, pMessage, pMessageLen);
 
         if (rc != 0) {
             DLOGW("ZMQ publish of received data failed");
@@ -744,7 +744,7 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
                                  PSampleConfiguration* ppSampleConfiguration)
 {
     STATUS retStatus = STATUS_SUCCESS;
-    PCHAR pAccessKey, pSecretKey, pSessionToken, pLogLevel, pZmqPubPort;
+    PCHAR pAccessKey, pSecretKey, pSessionToken, pLogLevel, pZmqPubPort, pZmqPubTopic;
     PSampleConfiguration pSampleConfiguration = NULL;
     UINT32 logLevel = LOG_LEVEL_DEBUG;
     UINT32 zmqPubPort = 0;
@@ -830,7 +830,8 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
     pSampleConfiguration->iceCandidatePairStatsTimerId = MAX_UINT32;
     pSampleConfiguration->pregenerateCertTimerId = MAX_UINT32;
 
-    pSampleConfiguration->pZSock = NULL;
+    pSampleConfiguration->pZmqSock = NULL;
+    pSampleConfiguration->pZmqPubTopic = NULL;
 
     ATOMIC_STORE_BOOL(&pSampleConfiguration->interrupted, FALSE);
     ATOMIC_STORE_BOOL(&pSampleConfiguration->mediaThreadStarted, FALSE);
@@ -856,16 +857,20 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
                                          &pSampleConfiguration->pRtcPeerConnectionForRemoteClient));
 
     // create zmq pub socket (redistribute all datachannel's incoming data)
-    if (NULL != (pZmqPubPort = getenv(ZMQ_PUB_ENDPOINT_PORT)) && STATUS_SUCCESS == STRTOUI32(pZmqPubPort, NULL, 10, &zmqPubPort)) {
+    if (NULL != (pZmqPubPort = getenv(ZMQ_PUB_ENDPOINT_PORT_ENV_VAR)) && STATUS_SUCCESS == STRTOUI32(pZmqPubPort, NULL, 10, &zmqPubPort)) {
         CHAR endpoint[128] = {0};
-        zsock_t *zsock = zsock_new(ZMQ_PUB);
-        assert(zsock);
+        
+        pSampleConfiguration->pZmqSock = zsock_new(ZMQ_PUB);
+        assert(pSampleConfiguration->pZmqSock);
 
         SPRINTF(endpoint, "tcp://127.0.0.1:%d", zmqPubPort);
-        CHK_ERR(zsock_bind(zsock, endpoint) == zmqPubPort, STATUS_INVALID_OPERATION, "ZMQ PUB: bind FAILED on '%s'", endpoint);
-        
-        pSampleConfiguration->pZSock = (PVOID)zsock;
-        DLOGI("ZMQ PUB: bound to '%s'", endpoint);
+        CHK_ERR(zsock_bind(pSampleConfiguration->pZmqSock, endpoint) == zmqPubPort, STATUS_INVALID_OPERATION,
+                "ZMQ PUB: bind FAILED on '%s'", endpoint);
+
+        if (NULL == (pSampleConfiguration->pZmqPubTopic = getenv(ZMQ_PUB_TOPIC_ENV_VAR))) {
+            pSampleConfiguration->pZmqPubTopic = ZMQ_PUB_TOPIC_DEFAULT;
+        }
+        DLOGI("ZMQ PUB: bound to '%s', topic '%s'", endpoint, pSampleConfiguration->pZmqPubTopic);
     }
 
 CleanUp:
@@ -1165,8 +1170,8 @@ STATUS freeSampleConfiguration(PSampleConfiguration* ppSampleConfiguration)
         pSampleConfiguration->pregeneratedCertificates = NULL;
     }
 
-    if (pSampleConfiguration->pZSock != NULL) {
-        zsock_destroy((zsock_t *)&(pSampleConfiguration->pZSock));
+    if (pSampleConfiguration->pZmqSock != NULL) {
+        zsock_destroy((zsock_t *)&(pSampleConfiguration->pZmqSock));
     }
 
     SAFE_MEMFREE(*ppSampleConfiguration);
